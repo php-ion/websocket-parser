@@ -113,10 +113,12 @@ size_t websocket_parser_execute(websocket_parser *parser, const websocket_parser
                 }
                 break;
             case s_length:
-                for(; i < len, parser->require; i++, parser->require--) {
+                while(i < len && parser->require) {
                     parser->length <<= 8;
-                    parser->length |= (unsigned char)data[i];
+                    parser->length |= (unsigned char)data[i++];
+                    parser->require--;
                 }
+                i--;
                 if(!UNEXPECTED(parser->require)) {
                     parser->require = parser->length;
                     NOTIFY_CB(frame_header);
@@ -124,8 +126,8 @@ size_t websocket_parser_execute(websocket_parser *parser, const websocket_parser
                 }
                 break;
             case s_mask:
-                for(; i < len, parser->require; i++, parser->require--) {
-                    parser->mask[4 - parser->require] = data[i];
+                while(i < len && parser->require) {
+                    parser->mask[4 - parser->require--] = data[i++];
                 }
                 i--;
                 if(!UNEXPECTED(parser->require)) {
