@@ -59,14 +59,14 @@ size_t websocket_parser_execute(websocket_parser *parser, const websocket_parser
     size_t r = 0;
     char c;
 
-    while(i < len) {
+    while(EXPECTED(i < len)) {
         c = data[i];
         switch(parser->state) {
             case s_start:
                 parser->length = 0;
                 parser->flags  = (uint32_t) (c & WS_OP_MASK);
                 c >>= 7;
-                if(c & 1) {
+                if(EXPECTED(c & 1)) {
                     parser->flags |= WS_FIN;
                 }
                 parser->state = s_head;
@@ -101,7 +101,7 @@ size_t websocket_parser_execute(websocket_parser *parser, const websocket_parser
                     if(EXPECTED(parser->flags & WS_HAS_MASK)) {
                         parser->state = s_mask;
                         parser->require = 4;
-                    } else if(parser->length) {
+                    } else if(EXPECTED(parser->length)) {
                         parser->require = parser->length;
                         NOTIFY_CB(frame_header);
                         parser->state = s_body;
@@ -141,7 +141,7 @@ size_t websocket_parser_execute(websocket_parser *parser, const websocket_parser
                 }
                 break;
             case s_body:
-                if(parser->require) {
+                if(EXPECTED(parser->require)) {
                     r = parser->require;
                     parser->require -= len - i;
                     EMIT_DATA_CB(frame_body, &data[i], len - i);
@@ -163,11 +163,20 @@ size_t websocket_parser_execute(websocket_parser *parser, const websocket_parser
     return i;
 }
 
-void websocket_parser_copy_masked(char * dst, const char * src, size_t len, websocket_parser * parser) {
+void websocket_parser_decode(char * dst, const char * src, size_t len, websocket_parser * parser) {
     size_t i = 0;
     for(; i < len; i++) {
         dst[i] = src[i] ^ parser->mask[(i + parser->mask_offset) % 4];
     }
 
     parser->mask_offset = (uint8_t) ((i + parser->mask_offset + 1) % 4);
+}
+
+uint8_t websocket_decode(char * dst, const char * src, size_t len, char mask[4], uint8_t mask_offset) {
+    size_t i = 0;
+    for(; i < len; i++) {
+        dst[i] = src[i] ^ mask[(i + mask_offset) % 4];
+    }
+
+    return (uint8_t) ((i + mask_offset + 1) % 4);
 }

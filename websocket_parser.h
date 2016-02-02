@@ -74,11 +74,16 @@ struct websocket_parser_settings {
 
 void websocket_parser_init(websocket_parser *parser);
 void websocket_parser_settings_init(websocket_parser_settings *settings);
-size_t websocket_parser_execute(websocket_parser *parser,
-                           const websocket_parser_settings *settings,
-                           const char *data,
-                           size_t len);
-void websocket_parser_copy_masked(char * dst, const char * src, size_t len, websocket_parser * parser);
+size_t websocket_parser_execute(
+    websocket_parser *parser,
+    const websocket_parser_settings *settings,
+    const char *data,
+    size_t len
+);
+void websocket_parser_decode(char * dst, const char * src, size_t len, websocket_parser * parser);
+uint8_t websocket_decode(char * dst, const char * src, size_t len, char mask[4], uint8_t mask_offset);
+#define websocket_encode(dst, src, len, mask, mask_offset) websocket_decode(dst, src, len, mask, mask_offset)
+
 #ifdef __cplusplus
 }
 #endif
