@@ -79,8 +79,10 @@ int websocket_frame_end(websocket_parser * parser) {
 When data is received execute the parser and check for errors.
 
 ```c
-websocket_parser_execute(parser, &settings, data, data_len);
-if(parser->error) {
+size_t nread;
+
+nread = websocket_parser_execute(parser, &settings, data, data_len);
+if(parser->error || nread != data_len) {
     // e.g. log error
 }
 // ...
