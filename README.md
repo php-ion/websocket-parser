@@ -4,7 +4,8 @@ WebSocket frame parser
 
 ### Features
 * No dependencies
-* Works with chunks of a data - no need to buffer the whole request
+* No internal buffering
+* No need to buffer the whole frame — works with chunks of a data
 
 This is a parser for WebSocket frame-messages written in C (by [RFC6455](https://tools.ietf.org/html/rfc6455)).
 It does not make any syscalls nor allocations, it does not
@@ -33,8 +34,8 @@ These functions must match the signatures defined in the websocket-parser header
 
 Returning a value other than 0 from the callbacks will abort message processing.
 
-Initialize the `struct` using `http_parser_init()` and set the callbacks. That might look something
-like this for a request parser:
+One websocket_parser object is used per TCP connection. Initialize `websocket_parser` struct using `http_parser_init()` and set the callbacks. That might look something
+like this for a frame parser:
 ```c
 websocket_parser_settings settings;
 
