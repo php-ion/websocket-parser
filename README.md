@@ -1,15 +1,15 @@
 WebSocket frame parser
 ======================
 
-
 ### Features
 * No dependencies
 * No internal buffering
 * No need to buffer the whole frame — works with chunks of a data
+* No syscalls
+* No allocations
+* It can be interrupted at anytime
 
-This is a parser for WebSocket frame-messages written in C (by [RFC6455](https://tools.ietf.org/html/rfc6455)).
-It does not make any syscalls nor allocations, it does not
-buffer data, it can be interrupted at anytime.
+This is a parser for WebSocket frame-messages written in C (see [RFC6455](https://tools.ietf.org/html/rfc6455)).
 
 Tested as part of [PHP-ION](https://github.com/php-ion/php-ion) extension.
 
@@ -81,11 +81,13 @@ When data is received execute the parser and check for errors.
 
 ```c
 size_t nread;
+// .. init settitngs and parser ... 
 
 nread = websocket_parser_execute(parser, &settings, data, data_len);
-if(parser->error || nread != data_len) {
-    // e.g. log error
+if(nread != data_len) {
+    // some callback return a value other than 0
 }
+
 // ...
 free(parser);
 ```
