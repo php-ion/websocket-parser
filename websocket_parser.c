@@ -1,9 +1,6 @@
 #include "websocket_parser.h"
 #include <assert.h>
-#include <stddef.h>
-#include <stdlib.h>
 #include <string.h>
-#include <limits.h>
 
 
 #ifdef __GNUC__
@@ -14,13 +11,16 @@
 # define UNEXPECTED(X) (X)
 #endif
 
-#define OPCODE_MASK 0xF
+#define SET_STATE(V) parser->state = V
+#define HAS_DATA() (p < end )
+#define CC (*p)
+#define GET_PARSED() ( (p == end) ? len : (p - data) )
 
 #define NOTIFY_CB(FOR)                                                 \
 do {                                                                   \
   if (settings->on_##FOR) {                                            \
     if (settings->on_##FOR(parser) != 0) {                             \
-      return i;                                                        \
+      return GET_PARSED();                                             \
     }                                                                  \
   }                                                                    \
 } while (0)
@@ -29,7 +29,7 @@ do {                                                                   \
 do {                                                                   \
   if (settings->on_##FOR) {                                            \
     if (settings->on_##FOR(parser, ptr, len) != 0) {                   \
-      return i;                                                        \
+      return GET_PARSED();                                             \
     }                                                                  \
   }                                                                    \
 } while (0)
@@ -55,114 +55,119 @@ void websocket_parser_settings_init(websocket_parser_settings *settings) {
 }
 
 size_t websocket_parser_execute(websocket_parser *parser, const websocket_parser_settings *settings, const char *data, size_t len) {
-    size_t i = 0;
-    size_t r = 0;
-    char c;
+    const char * p;
+    const char * end = data + len;
+    uint8_t header_size = 0;
 
-    while(EXPECTED(i < len)) {
-        c = data[i];
+    for(p = data; p != end; p++) {
         switch(parser->state) {
             case s_start:
-                parser->length = 0;
-                parser->flags  = (uint32_t) (c & WS_OP_MASK);
-                c >>= 7;
-                if(EXPECTED(c & 1)) {
+                parser->length      = 0;
+                parser->mask_offset = 0;
+                parser->flags       = (uint32_t) (CC & WS_OP_MASK);
+                if(EXPECTED(CC & (1<<7))) {
                     parser->flags |= WS_FIN;
                 }
-                parser->state = s_head;
+                SET_STATE(s_head);
+
+                header_size++;
                 break;
             case s_head:
-                parser->length  = (size_t)c & 0x7F;
-                if(c & 0x80) {
+                parser->length  = (size_t)CC & 0x7F;
+                if(CC & 0x80) {
                     parser->flags |= WS_HAS_MASK;
                 }
                 if(EXPECTED(parser->length >= 126)) {
                     if(EXPECTED(parser->length == 127)) {
-                        if(EXPECTED(len - i > 8)) {
-                            parser->length = (uint16_t)data[i+1];
-                            i += 8;
-                        } else {
-                            parser->require = 8;
-                            parser->state = s_length;
-                        }
+                        parser->require = 8;
                     } else {
-                        if(EXPECTED(len - i >= 2)) {
-                            parser->length = (uint16_t)data[i+1];
-                            i += 2;
-                        } else {
-                            parser->require = 2;
-                        }
+                        parser->require = 2;
                     }
-                } else {
-                }
-                if(EXPECTED(parser->require)) {
-                    parser->state = s_length;
-                } else {
-                    if(EXPECTED(parser->flags & WS_HAS_MASK)) {
-                        parser->state = s_mask;
-                        parser->require = 4;
-                    } else if(EXPECTED(parser->length)) {
-                        parser->require = parser->length;
-                        NOTIFY_CB(frame_header);
-                        parser->state = s_body;
-                    } else {
-                        NOTIFY_CB(frame_header);
-                        NOTIFY_CB(frame_end);
-                        parser->state = s_start;
-                    }
-                }
-                break;
-            case s_length:
-                while(i < len && parser->require) {
-                    parser->length <<= 8;
-                    parser->length |= (unsigned char)data[i++];
-                    parser->require--;
-                }
-                i--;
-                if(!UNEXPECTED(parser->require)) {
+                    SET_STATE(s_length);
+                } else if (EXPECTED(parser->flags & WS_HAS_MASK)) {
+                    SET_STATE(s_mask);
+                    parser->require = 4;
+                } else if (EXPECTED(parser->length)) {
+                    SET_STATE(s_body);
                     parser->require = parser->length;
                     NOTIFY_CB(frame_header);
-                    parser->state = s_body;
+                } else {
+                    SET_STATE(s_start);
+                    NOTIFY_CB(frame_header);
+                    NOTIFY_CB(frame_end);
+                }
+
+                header_size++;
+                break;
+            case s_length:
+                while(HAS_DATA() && parser->require) {
+                    parser->length <<= 8;
+                    parser->length |= (unsigned char)CC;
+                    parser->require--;
+                    header_size++;
+                    p++;
+                }
+                p--;
+                if(UNEXPECTED(!parser->require)) {
+                    if (EXPECTED(parser->flags & WS_HAS_MASK)) {
+                        SET_STATE(s_mask);
+                        parser->require = 4;
+                    } else if (EXPECTED(parser->length)) {
+                        SET_STATE(s_body);
+                        parser->require = parser->length;
+                        NOTIFY_CB(frame_header);
+                    } else {
+                        SET_STATE(s_start);
+                        NOTIFY_CB(frame_header);
+                        NOTIFY_CB(frame_end);
+                    }
                 }
                 break;
             case s_mask:
-                while(i < len && parser->require) {
-                    parser->mask[4 - parser->require--] = data[i++];
+                while(HAS_DATA() && parser->require) {
+                    parser->mask[4 - parser->require--] = CC;
+                    header_size++;
+                    p++;
                 }
-                i--;
-                if(!UNEXPECTED(parser->require)) {
+                p--;
+                if(UNEXPECTED(!parser->require)) {
                     if(parser->length) {
+                        SET_STATE(s_body);
                         parser->require = parser->length;
                         NOTIFY_CB(frame_header);
-                        parser->state = s_body;
                     } else {
+                        SET_STATE(s_start);
                         NOTIFY_CB(frame_header);
                         NOTIFY_CB(frame_end);
-                        parser->state = s_start;
                     }
                 }
                 break;
             case s_body:
                 if(EXPECTED(parser->require)) {
-                    r = parser->require;
-                    parser->require -= len - i;
-                    EMIT_DATA_CB(frame_body, &data[i], len - i);
-                    parser->offset = len - parser->require;
-                    i+=r;
+                    if(p + parser->require <= end) {
+                        EMIT_DATA_CB(frame_body, p, parser->require);
+                        p += parser->require;
+                        parser->require = 0;
+                    } else {
+                        EMIT_DATA_CB(frame_body, p, end - p);
+                        parser->require -= end - p;
+                        p = end;
+                        parser->offset += p - data - header_size;
+                    }
+
+                    p--;
                 }
-                if(!UNEXPECTED(parser->require)) {
+                if(UNEXPECTED(!parser->require)) {
                     NOTIFY_CB(frame_end);
-                    parser->state = s_start;
+                    SET_STATE(s_start);
                 }
                 break;
             default:
-                parser->error = ERR_UNKNOWN_STATE;
-                return i;
+                assert(0 && "Unreachable case");
         }
-        i++;
     }
 
-    return i;
+    return GET_PARSED();
 }
 
 void websocket_parser_decode(char * dst, const char * src, size_t len, websocket_parser * parser) {
@@ -171,7 +176,7 @@ void websocket_parser_decode(char * dst, const char * src, size_t len, websocket
         dst[i] = src[i] ^ parser->mask[(i + parser->mask_offset) % 4];
     }
 
-    parser->mask_offset = (uint8_t) ((i + parser->mask_offset + 1) % 4);
+    parser->mask_offset = (uint8_t) ((i + parser->mask_offset) % 4);
 }
 
 uint8_t websocket_decode(char * dst, const char * src, size_t len, char mask[4], uint8_t mask_offset) {
