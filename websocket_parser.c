@@ -57,12 +57,11 @@ void websocket_parser_settings_init(websocket_parser_settings *settings) {
 size_t websocket_parser_execute(websocket_parser *parser, const websocket_parser_settings *settings, const char *data, size_t len) {
     const char * p;
     const char * end = data + len;
-    size_t header_size = 0;
+    size_t frame_offset = 0;
 
     for(p = data; p != end; p++) {
         switch(parser->state) {
             case s_start:
-//                header_size         = 0;
                 parser->offset      = 0;
                 parser->length      = 0;
                 parser->mask_offset = 0;
@@ -72,7 +71,7 @@ size_t websocket_parser_execute(websocket_parser *parser, const websocket_parser
                 }
                 SET_STATE(s_head);
 
-                header_size++;
+                frame_offset++;
                 break;
             case s_head:
                 parser->length  = (size_t)CC & 0x7F;
@@ -100,14 +99,14 @@ size_t websocket_parser_execute(websocket_parser *parser, const websocket_parser
                     NOTIFY_CB(frame_end);
                 }
 
-                header_size++;
+                frame_offset++;
                 break;
             case s_length:
                 while(HAS_DATA() && parser->require) {
                     parser->length <<= 8;
                     parser->length |= (unsigned char)CC;
                     parser->require--;
-                    header_size++;
+                    frame_offset++;
                     p++;
                 }
                 p--;
@@ -129,7 +128,7 @@ size_t websocket_parser_execute(websocket_parser *parser, const websocket_parser
             case s_mask:
                 while(HAS_DATA() && parser->require) {
                     parser->mask[4 - parser->require--] = CC;
-                    header_size++;
+                    frame_offset++;
                     p++;
                 }
                 p--;
@@ -151,13 +150,13 @@ size_t websocket_parser_execute(websocket_parser *parser, const websocket_parser
                         EMIT_DATA_CB(frame_body, p, parser->require);
                         p += parser->require;
                         parser->require = 0;
-                        header_size = p - data;
+                        frame_offset = p - data;
                     } else {
                         EMIT_DATA_CB(frame_body, p, end - p);
                         parser->require -= end - p;
                         p = end;
-                        parser->offset += p - data - header_size;
-                        header_size = 0;
+                        parser->offset += p - data - frame_offset;
+                        frame_offset = 0;
                     }
 
                     p--;
