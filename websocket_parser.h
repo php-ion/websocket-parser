@@ -23,6 +23,8 @@ typedef unsigned __int64 uint64_t;
 #include <stdint.h>
 #endif
 
+#define WEBSOCKET_UUID   "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
+
 typedef struct websocket_parser websocket_parser;
 typedef struct websocket_parser_settings websocket_parser_settings;
 
@@ -81,8 +83,10 @@ size_t websocket_parser_execute(
     size_t len
 );
 void websocket_parser_decode(char * dst, const char * src, size_t len, websocket_parser * parser);
-uint8_t websocket_decode(char * dst, const char * src, size_t len, char mask[4], uint8_t mask_offset);
+uint8_t websocket_decode(char * dst, const char * src, size_t len, const char mask[4], uint8_t mask_offset);
 #define websocket_encode(dst, src, len, mask, mask_offset) websocket_decode(dst, src, len, mask, mask_offset)
+size_t websocket_calc_frame_size(uint32_t flags, size_t data_len);
+size_t websocket_build_frame(char * frame, uint32_t flags, const char mask[4], const char * data, size_t data_len);
 
 #ifdef __cplusplus
 }

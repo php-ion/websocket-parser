@@ -57,11 +57,13 @@ void websocket_parser_settings_init(websocket_parser_settings *settings) {
 size_t websocket_parser_execute(websocket_parser *parser, const websocket_parser_settings *settings, const char *data, size_t len) {
     const char * p;
     const char * end = data + len;
-    uint8_t header_size = 0;
+    size_t header_size = 0;
 
     for(p = data; p != end; p++) {
         switch(parser->state) {
             case s_start:
+//                header_size         = 0;
+                parser->offset      = 0;
                 parser->length      = 0;
                 parser->mask_offset = 0;
                 parser->flags       = (uint32_t) (CC & WS_OP_MASK);
@@ -83,6 +85,7 @@ size_t websocket_parser_execute(websocket_parser *parser, const websocket_parser
                     } else {
                         parser->require = 2;
                     }
+                    parser->length = 0;
                     SET_STATE(s_length);
                 } else if (EXPECTED(parser->flags & WS_HAS_MASK)) {
                     SET_STATE(s_mask);
@@ -148,11 +151,13 @@ size_t websocket_parser_execute(websocket_parser *parser, const websocket_parser
                         EMIT_DATA_CB(frame_body, p, parser->require);
                         p += parser->require;
                         parser->require = 0;
+                        header_size = p - data;
                     } else {
                         EMIT_DATA_CB(frame_body, p, end - p);
                         parser->require -= end - p;
                         p = end;
                         parser->offset += p - data - header_size;
+                        header_size = 0;
                     }
 
                     p--;
@@ -179,11 +184,73 @@ void websocket_parser_decode(char * dst, const char * src, size_t len, websocket
     parser->mask_offset = (uint8_t) ((i + parser->mask_offset) % 4);
 }
 
-uint8_t websocket_decode(char * dst, const char * src, size_t len, char mask[4], uint8_t mask_offset) {
+uint8_t websocket_decode(char * dst, const char * src, size_t len, const char mask[4], uint8_t mask_offset) {
     size_t i = 0;
     for(; i < len; i++) {
         dst[i] = src[i] ^ mask[(i + mask_offset) % 4];
     }
 
     return (uint8_t) ((i + mask_offset) % 4);
+}
+
+size_t websocket_calc_frame_size(uint32_t flags, size_t data_len) {
+    size_t size = data_len + 2; // body + 2 bytes of head
+    if(EXPECTED(data_len >= 126)) {
+        if(EXPECTED(data_len > 0xFFFF)) {
+            size += 8;
+        } else {
+            size += 2;
+        }
+    }
+    if(EXPECTED(flags & WS_HAS_MASK)) {
+        size += 4;
+    }
+
+    return size;
+}
+
+size_t websocket_build_frame(char * frame, uint32_t flags, const char mask[4], const char * data, size_t data_len) {
+    size_t body_offset = 0;
+    frame[0] = 0;
+    frame[1] = 0;
+    if(flags & WS_FIN) {
+        frame[0] = (char) (1 << 7);
+    }
+    frame[0] |= flags & WS_OP_MASK;
+    if(flags & WS_HAS_MASK) {
+        frame[1] = (char) (1 << 7);
+    }
+    if(data_len < 126) {
+        frame[1] |= data_len;
+        body_offset = 2;
+    } else if(data_len <= 0xFFFF) {
+        frame[1] |= 126;
+        frame[2] = (char) (data_len >> 8);
+        frame[3] = (char) (data_len & 0xFF);
+        body_offset = 4;
+    } else {
+        frame[1] |= 127;
+        frame[2] = (char) ((data_len >> 56) & 0xFF);
+        frame[3] = (char) ((data_len >> 48) & 0xFF);
+        frame[4] = (char) ((data_len >> 40) & 0xFF);
+        frame[5] = (char) ((data_len >> 32) & 0xFF);
+        frame[6] = (char) ((data_len >> 24) & 0xFF);
+        frame[7] = (char) ((data_len >> 16) & 0xFF);
+        frame[8] = (char) ((data_len >>  8) & 0xFF);
+        frame[9] = (char) ((data_len)       & 0xFF);
+        body_offset = 10;
+    }
+    if(flags & WS_HAS_MASK) {
+        if(mask == NULL) { // if is NULL
+            memcpy(mask, &frame[body_offset], 4);
+        } else {
+            memcpy(&frame[body_offset], mask, 4);
+        }
+        body_offset += 4;
+        websocket_decode(&frame[body_offset], (const char *) data, data_len, mask, 0);
+    } else {
+        memcpy(&frame[body_offset], data, data_len);
+    }
+
+    return body_offset + data_len;
 }

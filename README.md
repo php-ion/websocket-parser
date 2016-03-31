@@ -2,6 +2,7 @@ WebSocket frame parser
 ======================
 
 ### Features
+* Fast parsing and building of websocket frame-messages
 * No dependencies
 * No internal buffering
 * No need to buffer the whole frame — works with chunks of a data
@@ -9,7 +10,7 @@ WebSocket frame parser
 * No allocations
 * It can be interrupted at anytime
 
-This is a parser for WebSocket frame-messages written in C (see [RFC6455](https://tools.ietf.org/html/rfc6455)).
+This is a parser for WebSocket frame-messages (see [RFC6455](https://tools.ietf.org/html/rfc6455)) written in C.
 
 Tested as part of [PHP-ION](https://github.com/php-ion/php-ion) extension.
 
@@ -34,8 +35,9 @@ These functions must match the signatures defined in the websocket-parser header
 
 Returning a value other than 0 from the callbacks will abort message processing.
 
-One websocket_parser object is used per TCP connection. Initialize `websocket_parser` struct using `http_parser_init()` and set the callbacks. That might look something
-like this for a frame parser:
+One websocket_parser object is used per TCP connection. Initialize `websocket_parser` struct using `websocket_parser_init()` and set the callbacks.
+That might look something like this for a frame parser:
+
 ```c
 websocket_parser_settings settings;
 
@@ -90,4 +92,25 @@ if(nread != data_len) {
 
 // ...
 free(parser);
+```
+
+### Frame builder
+
+Calculate required memory for frame using `websocket_calc_frame_size` function
+
+```c
+size_t frame_len = websocket_calc_frame_size(WS_OP_TEXT | WS_FIN | WS_HAS_MASK, data_len);
+char * frame = malloc(sizeof(char) * frame_len);
+```
+
+build frame
+
+```c
+websocket_build_frame(frame, WS_OP_TEXT | WS_FIN | WS_HAS_MASK, mask, data, data_len);
+```
+
+and send frame via socket
+
+```c
+write(sock, frame, frame_len);
 ```
