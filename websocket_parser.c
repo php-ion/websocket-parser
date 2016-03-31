@@ -185,5 +185,5 @@ uint8_t websocket_decode(char * dst, const char * src, size_t len, char mask[4],
         dst[i] = src[i] ^ mask[(i + mask_offset) % 4];
     }
 
-    return (uint8_t) ((i + mask_offset + 1) % 4);
+    return (uint8_t) ((i + mask_offset) % 4);
 }
