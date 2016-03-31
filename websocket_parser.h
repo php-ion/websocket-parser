@@ -68,7 +68,6 @@ struct websocket_parser {
 };
 
 struct websocket_parser_settings {
-    uint64_t          max_frame_size;
     websocket_cb      on_frame_header;
     websocket_data_cb on_frame_body;
     websocket_cb      on_frame_end;
