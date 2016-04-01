@@ -2,7 +2,7 @@ WebSocket frame parser
 ======================
 
 ### Features
-* Fast parsing and building of websocket frame-messages
+* Fast parsing and building of websocket messages
 * No dependencies
 * No internal buffering
 * No need to buffer the whole frame — works with chunks of a data

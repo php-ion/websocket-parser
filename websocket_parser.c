@@ -240,13 +240,11 @@ size_t websocket_build_frame(char * frame, uint32_t flags, const char mask[4], c
         body_offset = 10;
     }
     if(flags & WS_HAS_MASK) {
-        if(mask == NULL) { // if is NULL
-            memcpy(mask, &frame[body_offset], 4);
-        } else {
+        if(mask != NULL) {
             memcpy(&frame[body_offset], mask, 4);
         }
+        websocket_decode(&frame[body_offset + 4], data, data_len, &frame[body_offset], 0);
         body_offset += 4;
-        websocket_decode(&frame[body_offset], (const char *) data, data_len, mask, 0);
     } else {
         memcpy(&frame[body_offset], data, data_len);
     }
