@@ -1,7 +1,7 @@
-WebSocket frame parser
-======================
+WebSocket frame parser and builder
+==================================
 
-This is a parser for WebSocket frame-messages (see [RFC6455](https://tools.ietf.org/html/rfc6455)) written in C.
+This is a parser and builder for WebSocket messages (see [RFC6455](https://tools.ietf.org/html/rfc6455)) written in C.
 
 ### Features
 * Fast parsing and building of websocket messages
@@ -109,7 +109,7 @@ build frame
 websocket_build_frame(frame, WS_OP_TEXT | WS_FINAL_FRAME | WS_HAS_MASK, mask, data, data_len);
 ```
 
-and send binary string via socket
+and send binary string
 
 ```c
 write(sock, frame, frame_len);
