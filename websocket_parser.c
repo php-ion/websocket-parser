@@ -2,25 +2,22 @@
 #include <assert.h>
 #include <string.h>
 
-
-#ifdef __GNUC__
-# define EXPECTED(X) __builtin_expect(!!(X), 1)
-# define UNEXPECTED(X) __builtin_expect(!!(X), 0)
+#ifdef assert
+# define assertFalse(msg) assert(0 && msg)
 #else
-# define EXPECTED(X) (X)
-# define UNEXPECTED(X) (X)
+# define assertFalse(msg)
 #endif
 
 #define SET_STATE(V) parser->state = V
 #define HAS_DATA() (p < end )
 #define CC (*p)
-#define GET_PARSED() ( (p == end) ? len : (p - data) )
+#define GET_NPARSED() ( (p == end) ? len : (p - data) )
 
 #define NOTIFY_CB(FOR)                                                 \
 do {                                                                   \
   if (settings->on_##FOR) {                                            \
     if (settings->on_##FOR(parser) != 0) {                             \
-      return GET_PARSED();                                             \
+      return GET_NPARSED();                                            \
     }                                                                  \
   }                                                                    \
 } while (0)
@@ -29,7 +26,7 @@ do {                                                                   \
 do {                                                                   \
   if (settings->on_##FOR) {                                            \
     if (settings->on_##FOR(parser, ptr, len) != 0) {                   \
-      return GET_PARSED();                                             \
+      return GET_NPARSED();                                            \
     }                                                                  \
   }                                                                    \
 } while (0)
@@ -47,7 +44,6 @@ void websocket_parser_init(websocket_parser * parser) {
     memset(parser, 0, sizeof(*parser));
     parser->data = data;
     parser->state = s_start;
-    parser->error = 0;
 }
 
 void websocket_parser_settings_init(websocket_parser_settings *settings) {
@@ -65,8 +61,8 @@ size_t websocket_parser_execute(websocket_parser *parser, const websocket_parser
                 parser->offset      = 0;
                 parser->length      = 0;
                 parser->mask_offset = 0;
-                parser->flags       = (uint32_t) (CC & WS_OP_MASK);
-                if(EXPECTED(CC & (1<<7))) {
+                parser->flags       = (websocket_flags) (CC & WS_OP_MASK);
+                if(CC & (1<<7)) {
                     parser->flags |= WS_FIN;
                 }
                 SET_STATE(s_head);
@@ -78,18 +74,18 @@ size_t websocket_parser_execute(websocket_parser *parser, const websocket_parser
                 if(CC & 0x80) {
                     parser->flags |= WS_HAS_MASK;
                 }
-                if(EXPECTED(parser->length >= 126)) {
-                    if(EXPECTED(parser->length == 127)) {
+                if(parser->length >= 126) {
+                    if(parser->length == 127) {
                         parser->require = 8;
                     } else {
                         parser->require = 2;
                     }
                     parser->length = 0;
                     SET_STATE(s_length);
-                } else if (EXPECTED(parser->flags & WS_HAS_MASK)) {
+                } else if (parser->flags & WS_HAS_MASK) {
                     SET_STATE(s_mask);
                     parser->require = 4;
-                } else if (EXPECTED(parser->length)) {
+                } else if (parser->length) {
                     SET_STATE(s_body);
                     parser->require = parser->length;
                     NOTIFY_CB(frame_header);
@@ -110,11 +106,11 @@ size_t websocket_parser_execute(websocket_parser *parser, const websocket_parser
                     p++;
                 }
                 p--;
-                if(UNEXPECTED(!parser->require)) {
-                    if (EXPECTED(parser->flags & WS_HAS_MASK)) {
+                if(!parser->require) {
+                    if (parser->flags & WS_HAS_MASK) {
                         SET_STATE(s_mask);
                         parser->require = 4;
-                    } else if (EXPECTED(parser->length)) {
+                    } else if (parser->length) {
                         SET_STATE(s_body);
                         parser->require = parser->length;
                         NOTIFY_CB(frame_header);
@@ -132,7 +128,7 @@ size_t websocket_parser_execute(websocket_parser *parser, const websocket_parser
                     p++;
                 }
                 p--;
-                if(UNEXPECTED(!parser->require)) {
+                if(!parser->require) {
                     if(parser->length) {
                         SET_STATE(s_body);
                         parser->require = parser->length;
@@ -145,7 +141,7 @@ size_t websocket_parser_execute(websocket_parser *parser, const websocket_parser
                 }
                 break;
             case s_body:
-                if(EXPECTED(parser->require)) {
+                if(parser->require) {
                     if(p + parser->require <= end) {
                         EMIT_DATA_CB(frame_body, p, parser->require);
                         p += parser->require;
@@ -161,17 +157,17 @@ size_t websocket_parser_execute(websocket_parser *parser, const websocket_parser
 
                     p--;
                 }
-                if(UNEXPECTED(!parser->require)) {
+                if(!parser->require) {
                     NOTIFY_CB(frame_end);
                     SET_STATE(s_start);
                 }
                 break;
             default:
-                assert(0 && "Unreachable case");
+                assertFalse("Unreachable case");
         }
     }
 
-    return GET_PARSED();
+    return GET_NPARSED();
 }
 
 void websocket_parser_decode(char * dst, const char * src, size_t len, websocket_parser * parser) {
@@ -192,23 +188,23 @@ uint8_t websocket_decode(char * dst, const char * src, size_t len, const char ma
     return (uint8_t) ((i + mask_offset) % 4);
 }
 
-size_t websocket_calc_frame_size(uint32_t flags, size_t data_len) {
+size_t websocket_calc_frame_size(websocket_flags flags, size_t data_len) {
     size_t size = data_len + 2; // body + 2 bytes of head
-    if(EXPECTED(data_len >= 126)) {
-        if(EXPECTED(data_len > 0xFFFF)) {
+    if(data_len >= 126) {
+        if(data_len > 0xFFFF) {
             size += 8;
         } else {
             size += 2;
         }
     }
-    if(EXPECTED(flags & WS_HAS_MASK)) {
+    if(flags & WS_HAS_MASK) {
         size += 4;
     }
 
     return size;
 }
 
-size_t websocket_build_frame(char * frame, uint32_t flags, const char mask[4], const char * data, size_t data_len) {
+size_t websocket_build_frame(char * frame, websocket_flags flags, const char mask[4], const char * data, size_t data_len) {
     size_t body_offset = 0;
     frame[0] = 0;
     frame[1] = 0;
