@@ -99,14 +99,14 @@ free(parser);
 Calculate required memory for frame using `websocket_calc_frame_size` function
 
 ```c
-size_t frame_len = websocket_calc_frame_size(WS_OP_TEXT | WS_FINAL | WS_HAS_MASK, data_len);
+size_t frame_len = websocket_calc_frame_size(WS_OP_TEXT | WS_FINAL_FRAME | WS_HAS_MASK, data_len);
 char * frame = malloc(sizeof(char) * frame_len);
 ```
 
 build frame
 
 ```c
-websocket_build_frame(frame, WS_OP_TEXT | WS_FIN | WS_HAS_MASK, mask, data, data_len);
+websocket_build_frame(frame, WS_OP_TEXT | WS_FINAL_FRAME | WS_HAS_MASK, mask, data, data_len);
 ```
 
 and send binary string via socket
