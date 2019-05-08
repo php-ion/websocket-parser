@@ -146,6 +146,8 @@ Macro WEBSOCKET_UUID contains unique ID for handshake
 Test frame
 ----------
 
+There is websocket frame example:
+
 * Raw frame: `\x81\x8Amask\x0B\x13\x12\x06\x08\x41\x17\x0A\x19\x00`
 * Has mask: yes
 * Mask: `mask`
