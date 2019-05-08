@@ -1,9 +1,21 @@
 WebSocket frame parser and builder
-==================================
+----------------------------------
 
 This is a parser and builder for WebSocket messages (see [RFC6455](https://tools.ietf.org/html/rfc6455)) written in C.
 
-### Features
+Table of Contents
+-----------------
+
+* [Features](#features)
+* [Status](#status)
+* [Usage](#usage)
+* [Frame builder](#frame-builder)
+* [UUID](#uuid)
+* [Test frame](#test-frame)
+
+Features
+--------
+
 * Fast parsing and building of websocket messages
 * No dependencies
 * No internal buffering
@@ -17,7 +29,13 @@ Tested as part of [PHP-ION](https://github.com/php-ion/php-ion) extension.
 Inspired by [http-parser](https://github.com/joyent/http-parser) by [Ryan Dahl](https://github.com/ry)
 and [multipart-parser](https://github.com/iafonov/multipart-parser-c) by [Igor Afonov](https://github.com/iafonov).
 
-### Usage
+Status
+------
+
+Production ready.
+
+Usage
+-----
 
 This parser library works with several callbacks, which the user may set up at application initialization time.
 
@@ -94,7 +112,8 @@ if(nread != data_len) {
 free(parser);
 ```
 
-### Frame builder
+Frame builder
+-------------
 
 Calculate required memory for frame using `websocket_calc_frame_size` function
 
@@ -115,7 +134,8 @@ and send binary string
 write(sock, frame, frame_len);
 ```
 
-### UID
+UUID
+----
 
 Macro WEBSOCKET_UUID contains unique ID for handshake
 
@@ -123,7 +143,8 @@ Macro WEBSOCKET_UUID contains unique ID for handshake
 #define WEBSOCKET_UUID   "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
 ```
 
-### Test frame
+Test frame
+----------
 
 * Raw frame: `\x81\x8Amask\x0B\x13\x12\x06\x08\x41\x17\x0A\x19\x00`
 * Has mask: yes
