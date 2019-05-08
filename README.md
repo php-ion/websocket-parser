@@ -37,6 +37,8 @@ Production ready.
 Usage
 -----
 
+Use [http-parser](https://github.com/joyent/http-parser) for parsing headers. This library parse only websocket frames.
+
 This parser library works with several callbacks, which the user may set up at application initialization time.
 
 ```c
@@ -66,8 +68,8 @@ settings.on_frame_end    = websocket_frame_end;
 
 parser = malloc(sizeof(websocket_parser));
 websocket_parser_init(parser);
-// Attention! Sets your 'data' after websocket_parser_init
-parser->data = my_frame_struct; // set your custom data after websocket_parser_init() function
+// Attention! Sets your <data> after websocket_parser_init
+parser->data = my_frame_struct;
 ```
 
 Basically, callback looks like that:
