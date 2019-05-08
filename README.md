@@ -114,3 +114,20 @@ and send binary string
 ```c
 write(sock, frame, frame_len);
 ```
+
+### UID
+
+Macro WEBSOCKET_UUID contains unique ID for handshake
+
+```c
+#define WEBSOCKET_UUID   "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
+```
+
+### Test frame
+
+Raw frame: `\x81\x8Amask\x0B\x13\x12\x06\x08\x41\x17\x0A\x19\x00`
+Has mask: yes
+Mask: `mask`
+Payload: `frame data`
+Fin: yes
+Opcode: `WS_OP_TEXT`
